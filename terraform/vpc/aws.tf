@@ -4,7 +4,7 @@ provider "aws" {
 
 terraform {
   backend "s3" {
-    key = "terraform.tfstate"
+    key = "vpc.tfstate"
 
     bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
