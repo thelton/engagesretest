@@ -2,6 +2,18 @@ data "terraform_remote_state" "vpc" {
   backend = "s3"
 
   config = {
+    key = "vpc.tfstate"
+    bucket  = "terraform.engage.sretest.dev"
+    region  = "us-east-1"
+    profile = "default"
+  }
+}
+
+data "terraform_remote_state" "sg" {
+  backend = "s3"
+
+  config = {
+    key = "sg.tfstate"
     bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
@@ -40,31 +52,31 @@ data "aws_secretsmanager_secret_version" "sec_version" {
 #   db_creds = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string)
 # }
 
-module "rds_sg" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "4.3.0"
+# module "rds_sg" {
+#   source  = "terraform-aws-modules/security-group/aws"
+#   version = "4.3.0"
 
-  name        = "rds-sg"
-  description = "Security group for RDS DB ports open within VPC"
-  vpc_id      = data.terraform_remote_state.vpc.outputs.vpc_id
+#   name        = "rds-sg"
+#   description = "Security group for RDS DB ports open within VPC"
+#   vpc_id      = data.terraform_remote_state.vpc.outputs.vpc_id
 
-  ingress_with_cidr_blocks = [{
-    from_port = 5432
-    to_port = 5432
-    protocol = "tcp"
-    cidr_blocks = data.terraform_remote_state.vpc.outputs.vpc_cidr_block
-  }]
+#   ingress_with_source_security_group_id = [
+#     {
+#       rule                     = "postgresql-tcp"
+#       source_security_group_id = data.aws_security_group.default.id
+#     }
+#   ]
 
-  egress_with_cidr_blocks = [{
-      rule        = "all-all"
-      cidr_blocks = "0.0.0.0/0"
-  }]
+#   egress_with_cidr_blocks = [{
+#       rule        = "all-all"
+#       cidr_blocks = "0.0.0.0/0"
+#   }]
 
-  tags = {
-    Terraform   = "true"
-    Environment = "dev"
-  }
-}
+#   tags = {
+#     Terraform   = "true"
+#     Environment = "dev"
+#   }
+# }
 
 module "db" {
   source  = "terraform-aws-modules/rds/aws"
@@ -87,7 +99,7 @@ module "db" {
   password = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string).password
   port     = "5432"
 
-  vpc_security_group_ids = [module.rds_sg.security_group_id]
+  vpc_security_group_ids = [data.terraform_remote_state.sg.outputs.rds_security_group_id]
 
   maintenance_window = "Mon:00:00-Mon:03:00"
   backup_window      = "03:00-06:00"
