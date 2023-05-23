@@ -2,8 +2,8 @@ data "terraform_remote_state" "vpc" {
   backend = "s3"
 
   config = {
-    key = "vpc.tfstate"
-    bucket  = "terraform.engage.sretest.dev"
+    key     = "vpc.tfstate"
+    bucket  = "terraform.engage.sretest.dev1234"
     region  = "us-east-1"
     profile = "default"
   }
@@ -13,25 +13,24 @@ data "terraform_remote_state" "sg" {
   backend = "s3"
 
   config = {
-    key = "sg.tfstate"
-    bucket  = "terraform.engage.sretest.dev"
+    key     = "sg.tfstate"
+    bucket  = "terraform.engage.sretest.dev1234"
     region  = "us-east-1"
     profile = "default"
   }
 }
 
 resource "random_password" "password" {
-  length           = 16
-  special          = true
-  override_special = "_%@"
+  length  = 16
+  special = false
 }
- 
+
 resource "aws_secretsmanager_secret" "secret" {
-   name = "postgres-creds"
+  name = "postgres-creds"
 }
- 
+
 resource "aws_secretsmanager_secret_version" "sec_version" {
-  secret_id = aws_secretsmanager_secret.secret.id
+  secret_id     = aws_secretsmanager_secret.secret.id
   secret_string = <<EOF
    {
     "username": "pguser",
@@ -39,15 +38,15 @@ resource "aws_secretsmanager_secret_version" "sec_version" {
    }
 EOF
 }
- 
+
 data "aws_secretsmanager_secret" "secret" {
   arn = aws_secretsmanager_secret.secret.arn
 }
- 
+
 data "aws_secretsmanager_secret_version" "sec_version" {
   secret_id = data.aws_secretsmanager_secret.secret.arn
 }
- 
+
 # locals {
 #   db_creds = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string)
 # }
@@ -84,29 +83,32 @@ module "db" {
 
   identifier = "sre-testapp-db"
 
-  engine            = "postgres"
-  engine_version    = "15.3"
-  family = "postgres15"
-  major_engine_version = "15"
+  engine               = "postgres"
+  engine_version       = "14.6"
+  family               = "postgres14"
+  major_engine_version = "14"
 
   instance_class    = "db.t3.micro"
   allocated_storage = 5
 
   multi_az = true
 
-  db_name  = "students"
-  username = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string).username
-  password = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string).password
-  port     = "5432"
+  db_name                = "students"
+  username               = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string).username
+  password               = jsondecode(data.aws_secretsmanager_secret_version.sec_version.secret_string).password
+  port                   = "5432"
+  create_random_password = false
 
   vpc_security_group_ids = [data.terraform_remote_state.sg.outputs.rds_security_group_id]
+  db_subnet_group_name   = data.terraform_remote_state.vpc.outputs.database_subnet_group
+  subnet_ids             = data.terraform_remote_state.vpc.outputs.database_subnets
 
-  maintenance_window = "Mon:00:00-Mon:03:00"
-  backup_window      = "03:00-06:00"
+  maintenance_window              = "Mon:00:00-Mon:03:00"
+  backup_window                   = "03:00-06:00"
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
   create_cloudwatch_log_group     = true
   backup_retention_period         = 1
-  storage_encrypted = true
+  storage_encrypted               = true
 
   # Deletion protection normally true but disabled for this purpose
   deletion_protection = false

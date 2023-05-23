@@ -2,8 +2,8 @@ data "terraform_remote_state" "vpc" {
   backend = "s3"
 
   config = {
-    key = "vpc.tfstate"
-    bucket  = "terraform.engage.sretest.dev"
+    key     = "vpc.tfstate"
+    bucket  = "terraform.engage.sretest.dev1234"
     region  = "us-east-1"
     profile = "default"
   }
@@ -13,45 +13,131 @@ data "terraform_remote_state" "sg" {
   backend = "s3"
 
   config = {
-    key = "sg.tfstate"
-    bucket  = "terraform.engage.sretest.dev"
+    key     = "sg.tfstate"
+    bucket  = "terraform.engage.sretest.dev1234"
     region  = "us-east-1"
     profile = "default"
   }
 }
 
-# module "lb_ec2_sg" {
-#   source  = "terraform-aws-modules/security-group/aws"
-#   version = "4.3.0"
+data "terraform_remote_state" "ec2_app" {
+  backend = "s3"
 
-#   name        = "rds-sg"
-#   description = "Security group for RDS DB ports open within VPC"
-#   vpc_id      = data.terraform_remote_state.vpc.outputs.vpc_id
+  config = {
+    key     = "ec2-app.tfstate"
+    bucket  = "terraform.engage.sretest.dev1234"
+    region  = "us-east-1"
+    profile = "default"
+  }
+}
 
-#   ingress_cidr_blocks      = ["0.0.0.0/0"]
-#   ingress_rules            = ["https-443-tcp", "http-80-tcp", "ssh-tcp"]
+data "aws_iam_policy_document" "this" {
+  statement {
+    actions = ["sts:AssumeRole"]
 
-#   egress_with_cidr_blocks = [{
-#       rule        = "all-all"
-#       cidr_blocks = "0.0.0.0/0"
-#   }]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
 
-#   tags = {
-#     Terraform   = "true"
-#     Environment = "dev"
-#   }
-# }
+resource "aws_iam_role" "this" {
+  name               = "haproxy-role"
+  assume_role_policy = data.aws_iam_policy_document.this.json
+}
+
+resource "aws_iam_role_policy_attachment" "policy1" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM"
+}
+
+resource "aws_iam_role_policy_attachment" "policy2" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+data "aws_iam_policy_document" "haproxy-policy" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+      "s3:Get*",
+      "s3:List*",
+      "s3-object-lambda:Get*",
+      "s3-object-lambda:List*"
+    ]
+
+    resources = [
+      "*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "haproxy-policy" {
+  name_prefix = "haproxy-policy"
+  policy      = data.aws_iam_policy_document.haproxy-policy.json
+  role        = aws_iam_role.this.name
+}
+
+resource "aws_iam_instance_profile" "profile" {
+  name = "haproxy-role"
+  role = aws_iam_role.this.name
+}
+
+resource "random_string" "this" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
+resource "aws_s3_bucket" "this" {
+  bucket = "haproxy-sretest-bucket-${random_string.this.result}"
+
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
+}
+
+
+resource "aws_s3_bucket_object" "config_file_object" {
+  bucket = aws_s3_bucket.this.id
+  key    = "fluent-bit.conf"
+  content = templatefile("haproxy.cfg",
+    {
+      ip_addrs = data.terraform_remote_state.ec2_app.outputs.private_ip[0]
+    }
+  )
+
+  etag = filemd5("haproxy.cfg")
+
+  depends_on = [aws_s3_bucket.this]
+
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
+}
 
 module "lb_instance" {
-  source  = "terraform-aws-modules/ec2-instance/aws"
+  source = "terraform-aws-modules/ec2-instance/aws"
 
   name = "HAProxy-instance"
 
-  instance_type          = "t2.micro"
-  # key_name               = "user1"
-  monitoring             = true
-  vpc_security_group_ids = [data.terraform_remote_state.sg.outputs.ec2lb_security_group_id]
-  subnet_id              = data.terraform_remote_state.vpc.outputs.public_subnets[0]
+  ami                         = "ami-090fa75af13c156b4"
+  instance_type               = "t2.micro"
+  key_name                    = "testing"
+  monitoring                  = true
+  vpc_security_group_ids      = [data.terraform_remote_state.sg.outputs.ec2lb_security_group_id]
+  subnet_id                   = data.terraform_remote_state.vpc.outputs.public_subnets[0]
+  associate_public_ip_address = true
+
+  iam_instance_profile = "haproxy-role"
 
   ebs_block_device = [
     {
@@ -65,17 +151,22 @@ module "lb_instance" {
   user_data = <<EOF
 #!/bin/bash
 sudo yum update
-sudo yum install git -y
-sudo amazon-linux-extras install docker -y
-sudo service docker start
-sudo systemctl enable docker
-sudo usermod -a -G docker ec2-user
-sudo systemctl enable docker.service
-sudo systemctl enable containerd.service
-sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-git clone git@github.com:thelton/sre-testapp.git
+sudo yum install haproxy awslogs -y
+sudo systemctl enable haproxy.service
+sudo sed -i '0,/log_group_name = \/var\/log\/messages/s//log_group_name = HAProxy-server/' /etc/awslogs/awslogs.conf
+sudo systemctl start awslogsd
+sudo systemctl enable awslogsd.service
+aws s3api get-object --bucket ${aws_s3_bucket_object.config_file_object.id} --key haproxy.cfg /etc/haproxy/haproxy.cfg
+sudo mkdir /var/lib/haproxy/dev
+sudo systemctl start haproxy.service
+sudo echo $'$AddUnixListenSocket /var/lib/haproxy/dev/log\n\n# Send HAProxy messages to a dedicated logfile\n:programname, startswith, "haproxy" {\n  /var/log/haproxy.log\n  stop\n}' > /etc/rsyslog.d/99-haproxy.conf
+sudo systemctl restart rsyslog
 EOF
+
+  depends_on = [
+    aws_iam_instance_profile.profile,
+    aws_s3_bucket_object.config_file_object
+  ]
 
   tags = {
     Terraform   = "true"
