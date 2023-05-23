@@ -6,7 +6,7 @@ provider "aws" {
 
 # Terraform state locking setup (S3 bucket)
 resource "aws_s3_bucket" "terraform-s3-state" {
-  bucket = "terraform.engage.sretest.dev"
+  bucket = "terraform.engage.sretest.dev1234"
 
   versioning {
     enabled = true

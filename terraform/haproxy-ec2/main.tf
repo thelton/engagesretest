@@ -150,17 +150,17 @@ module "lb_instance" {
 
   user_data = <<EOF
 #!/bin/bash
-sudo yum update
-sudo yum install haproxy awslogs -y
-sudo systemctl enable haproxy.service
-sudo sed -i '0,/log_group_name = \/var\/log\/messages/s//log_group_name = HAProxy-server/' /etc/awslogs/awslogs.conf
-sudo systemctl start awslogsd
-sudo systemctl enable awslogsd.service
+yum update
+yum install haproxy awslogs -y
+systemctl enable haproxy.service
+sed -i '0,/log_group_name = \/var\/log\/messages/s//log_group_name = HAProxy-server/' /etc/awslogs/awslogs.conf
+systemctl start awslogsd
+systemctl enable awslogsd.service
 aws s3api get-object --bucket ${aws_s3_bucket_object.config_file_object.id} --key haproxy.cfg /etc/haproxy/haproxy.cfg
-sudo mkdir /var/lib/haproxy/dev
-sudo systemctl start haproxy.service
-sudo echo $'$AddUnixListenSocket /var/lib/haproxy/dev/log\n\n# Send HAProxy messages to a dedicated logfile\n:programname, startswith, "haproxy" {\n  /var/log/haproxy.log\n  stop\n}' > /etc/rsyslog.d/99-haproxy.conf
-sudo systemctl restart rsyslog
+mkdir /var/lib/haproxy/dev
+systemctl start haproxy.service
+echo $'$AddUnixListenSocket /var/lib/haproxy/dev/log\n\n# Send HAProxy messages to a dedicated logfile\n:programname, startswith, "haproxy" {\n  /var/log/haproxy.log\n  stop\n}' > /etc/rsyslog.d/99-haproxy.conf
+systemctl restart rsyslog
 EOF
 
   depends_on = [
