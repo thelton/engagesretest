@@ -3,7 +3,7 @@ data "terraform_remote_state" "vpc" {
 
   config = {
     key     = "vpc.tfstate"
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
   }
@@ -14,7 +14,7 @@ data "terraform_remote_state" "sg" {
 
   config = {
     key     = "sg.tfstate"
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
   }
