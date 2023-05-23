@@ -3,12 +3,13 @@
 ## Deploying
 
 **Terraform deployment order:**
-locking
-vpc
-security groups
-rds
-app-ec2
-haproxy-ec2
+
+- locking
+- vpc
+- security groups
+- rds
+- app-ec2
+- haproxy-ec2
 
 To start create a Key Pair in AWS EC2 with the name "testing" and download the PEM file. The aws profile is set to default so make sure your aws credentials are set to the account you want to deploy this to. Follow the order above and run `terraform init` then `terraform apply` in each directory.
 After all resources are deployed the **HAProxy** instance as a jumpbox to reach the **App-EC2s** in the private subnet. For access to the **App-EC2s** copy the testing.pem file to use inside the **HAProxy** instance.
