@@ -23,27 +23,21 @@ The VPC is created with 2 different availability zones in us-east-1 both with pu
 
 ### Security Groups
 
-**<ins>RDS</ins>**
-
-**Ingress**
+**<ins>RDS Ingress</ins>**
 | | |
 | ----------- | ----------- |
 | Port | 5432 |
 | Source | App-EC2-sg |
 | Protocol | TCP |
 
-**<ins>App-EC2</ins>**
-
-**Ingress**
+**<ins>App-EC2 Ingress</ins>**
 | | |
 | ----------- | ----------- |
 | Port | 80, 443, 22 |
 | Source | HAProxy-sg |
 | Protocol | TCP |
 
-**<ins>HAProxy</ins>**
-
-**Ingress**
+**<ins>HAProxy Ingress</ins>**
 | | |
 | ----------- | ----------- |
 | Port | 80, 443, 22 |
