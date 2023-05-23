@@ -24,6 +24,7 @@ The VPC is created with 2 different availability zones in us-east-1 both with pu
 ### Security Groups
 
 **<ins>RDS Ingress</ins>**
+| | |
 | ----------- | ----------- |
 | Port | 5432 |
 | Source | App-EC2-sg |
