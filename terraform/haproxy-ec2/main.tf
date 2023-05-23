@@ -3,7 +3,7 @@ data "terraform_remote_state" "vpc" {
 
   config = {
     key     = "vpc.tfstate"
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
   }
@@ -14,7 +14,7 @@ data "terraform_remote_state" "sg" {
 
   config = {
     key     = "sg.tfstate"
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
   }
@@ -25,7 +25,7 @@ data "terraform_remote_state" "ec2_app" {
 
   config = {
     key     = "ec2-app.tfstate"
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     profile = "default"
   }
@@ -107,7 +107,7 @@ resource "aws_s3_bucket" "this" {
 
 resource "aws_s3_bucket_object" "config_file_object" {
   bucket = aws_s3_bucket.this.id
-  key    = "fluent-bit.conf"
+  key    = "haproxy.cfg"
   content = templatefile("haproxy.cfg",
     {
       ip_addrs = data.terraform_remote_state.ec2_app.outputs.private_ip[0]
@@ -150,13 +150,16 @@ module "lb_instance" {
 
   user_data = <<EOF
 #!/bin/bash
+set -x
 yum update
 yum install haproxy awslogs -y
 systemctl enable haproxy.service
 sed -i '0,/log_group_name = \/var\/log\/messages/s//log_group_name = HAProxy-server/' /etc/awslogs/awslogs.conf
 systemctl start awslogsd
 systemctl enable awslogsd.service
-aws s3api get-object --bucket ${aws_s3_bucket_object.config_file_object.id} --key haproxy.cfg /etc/haproxy/haproxy.cfg
+echo "Getting haproxy.cfg"
+rm /etc/haproxy/haproxy.cfg
+aws s3api get-object --bucket ${aws_s3_bucket.this.id} --key haproxy.cfg /etc/haproxy/haproxy.cfg
 mkdir /var/lib/haproxy/dev
 systemctl start haproxy.service
 echo $'$AddUnixListenSocket /var/lib/haproxy/dev/log\n\n# Send HAProxy messages to a dedicated logfile\n:programname, startswith, "haproxy" {\n  /var/log/haproxy.log\n  stop\n}' > /etc/rsyslog.d/99-haproxy.conf

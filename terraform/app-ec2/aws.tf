@@ -6,7 +6,7 @@ terraform {
   backend "s3" {
     key = "ec2-app.tfstate"
 
-    bucket  = "terraform.engage.sretest.dev1234"
+    bucket  = "terraform.engage.sretest.dev"
     region  = "us-east-1"
     encrypt = "true"
 
